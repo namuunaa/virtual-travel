@@ -1,8 +1,12 @@
 module Main exposing (..)
 
+import Auth
 import Html exposing (..)
 import Html.Attributes exposing (class, defaultValue, src)
 import Html.Events exposing (..)
+import Http
+import Json.Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (..)
 
 
 ---- MODEL ----
@@ -10,13 +14,14 @@ import Html.Events exposing (..)
 
 type alias Model =
     { query : String
-    , result : List SearchResult
+    , results : List SearchResult
+    , selection : String
+    , errorMessage : Maybe String
     }
 
 
 type alias SearchResult =
-    { city : String
-    , country : String
+    { name : String
     }
 
 
@@ -27,16 +32,43 @@ type alias SearchResult =
 type Msg
     = Search
     | SetQuery String
+    | HandleSearchResponse (Result Http.Error (List SearchResult))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Search ->
-            ( model, Cmd.none )
+            ( model, getSearchResult model.query )
 
         SetQuery query ->
             ( { model | query = query }, Cmd.none )
+
+        HandleSearchResponse result ->
+            case result of
+                Ok results ->
+                    ( { model | results = results }, Cmd.none )
+
+                Err error ->
+                    let
+                        errorMessage =
+                            case error of
+                                Http.BadUrl _ ->
+                                    "There is something wrong with the url"
+
+                                Http.Timeout ->
+                                    "Timeout error. Please try again"
+
+                                Http.NetworkError ->
+                                    "Network Error has occured"
+
+                                Http.BadStatus _ ->
+                                    "I got a Bad Status error"
+
+                                Http.BadPayload _ _ ->
+                                    "I got a Bad Payload error"
+                    in
+                    ( { model | errorMessage = Just errorMessage }, Cmd.none )
 
 
 
@@ -46,7 +78,9 @@ update msg model =
 initialModel : Model
 initialModel =
     { query = ""
-    , result = []
+    , results = []
+    , selection = ""
+    , errorMessage = Nothing
     }
 
 
@@ -59,8 +93,25 @@ view model =
         , p []
             [ text "Where do you wanna go?" ]
         , input [ onInput SetQuery, defaultValue model.query ] []
-        , button [] [ text "Go" ]
+        , button [ onClick Search ] [ text "Go" ]
+        , ul [] (List.map viewSearchResult model.results)
+        , viewErrorMessage model.errorMessage
         ]
+
+
+viewErrorMessage : Maybe String -> Html Msg
+viewErrorMessage errorMessage =
+    case errorMessage of
+        Just message ->
+            div [ class "error" ] [ text message ]
+
+        Nothing ->
+            text ""
+
+
+viewSearchResult : SearchResult -> Html Msg
+viewSearchResult result =
+    div [] [ text result.name ]
 
 
 
@@ -75,3 +126,30 @@ main =
         , update = update
         , subscriptions = always Sub.none
         }
+
+
+getSearchResult : String -> Cmd Msg
+getSearchResult query =
+    let
+        url =
+            "https://maps.googleapis.com/maps/api/place/autocomplete/json?input="
+                ++ query
+                ++ "&types=geocode&key="
+                ++ Auth.token
+
+        request =
+            Http.get url decodeSearchResult
+    in
+    Http.send HandleSearchResponse <|
+        request
+
+
+decodeSearchResult : Decoder (List SearchResult)
+decodeSearchResult =
+    Json.Decode.at [ "predictions" ] (Json.Decode.list searchResultDecoder)
+
+
+searchResultDecoder : Decoder SearchResult
+searchResultDecoder =
+    decode SearchResult
+        |> required "description" Json.Decode.string
