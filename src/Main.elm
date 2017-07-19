@@ -1,19 +1,23 @@
 module Main exposing (..)
 
 import Html exposing (..)
-import Html.Attributes exposing (class, src)
+import Html.Attributes exposing (class, defaultValue, src)
+import Html.Events exposing (..)
 
 
 ---- MODEL ----
 
 
 type alias Model =
-    {}
+    { query : String
+    , result : List SearchResult
+    }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( {}, Cmd.none )
+type alias SearchResult =
+    { city : String
+    , country : String
+    }
 
 
 
@@ -21,16 +25,29 @@ init =
 
 
 type Msg
-    = NoOp
+    = Search
+    | SetQuery String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case msg of
+        Search ->
+            ( model, Cmd.none )
+
+        SetQuery query ->
+            ( { model | query = query }, Cmd.none )
 
 
 
 ---- VIEW ----
+
+
+initialModel : Model
+initialModel =
+    { query = ""
+    , result = []
+    }
 
 
 view : Model -> Html Msg
@@ -41,7 +58,7 @@ view model =
             ]
         , p []
             [ text "Where do you wanna go?" ]
-        , input [] []
+        , input [ onInput SetQuery, defaultValue model.query ] []
         , button [] [ text "Go" ]
         ]
 
@@ -54,7 +71,7 @@ main : Program Never Model Msg
 main =
     Html.program
         { view = view
-        , init = init
+        , init = ( initialModel, Cmd.none )
         , update = update
         , subscriptions = always Sub.none
         }
