@@ -16,6 +16,7 @@ type alias Model =
     { query : String
     , results : List SearchResult
     , selection : String
+    , photo : String
     , errorMessage : Maybe String
     }
 
@@ -32,6 +33,7 @@ type alias SearchResult =
 type Msg
     = Search
     | SetQuery String
+    | MakeSelection String
     | HandleSearchResponse (Result Http.Error (List SearchResult))
 
 
@@ -43,6 +45,23 @@ update msg model =
 
         SetQuery query ->
             ( { model | query = query }, Cmd.none )
+
+        MakeSelection selection ->
+            let
+                newResults =
+                    model.results
+                        |> List.filter (\{ name } -> name == selection)
+
+                newModel =
+                    { model
+                        | selection = selection
+                        , results = newResults
+                        , photo =
+                            "https://source.unsplash.com/1200x800/?"
+                                ++ selection
+                    }
+            in
+            ( newModel, Cmd.none )
 
         HandleSearchResponse result ->
             case result of
@@ -80,6 +99,7 @@ initialModel =
     { query = ""
     , results = []
     , selection = ""
+    , photo = ""
     , errorMessage = Nothing
     }
 
@@ -96,6 +116,7 @@ view model =
         , button [ onClick Search ] [ text "Go" ]
         , ul [] (List.map viewSearchResult model.results)
         , viewErrorMessage model.errorMessage
+        , viewImage model.photo
         ]
 
 
@@ -111,7 +132,18 @@ viewErrorMessage errorMessage =
 
 viewSearchResult : SearchResult -> Html Msg
 viewSearchResult result =
-    div [] [ text result.name ]
+    li []
+        [ text result.name
+        , button [ onClick (MakeSelection result.name) ]
+            [ text "Select" ]
+        ]
+
+
+viewImage : String -> Html Msg
+viewImage destination =
+    case destination of
+        selection ->
+            div [] [ img [ src destination ] [] ]
 
 
 
